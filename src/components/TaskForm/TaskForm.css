@@ -14,6 +14,13 @@
   letter-spacing: -0.02em;
 }
 
+.task-form__error {
+  margin: 0;
+  color: #be123c;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
 .task-form label {
   display: grid;
   gap: 8px;

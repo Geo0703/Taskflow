@@ -1,72 +1,91 @@
-import { useEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import type { LayoutContext } from "../../components/Layout/Layout";
 import { TaskList } from "../../components/TaskList/TaskList";
-import { criarTarefa, excluirTarefa, listarTarefas } from "../../services/tarefaService";
+import { useTarefas } from "../../contexts/useTarefas";
 import type { Tarefa } from "../../types/Tarefa";
 import "./Tasks.css";
-import { TaskForm } from "../../components/TaskForm/TaskForm";
-export function Tasks() {
-  const [tarefas, setTarefas] = useState<Tarefa[]>([]);
-  const [formularioAberto, setFormularioAberto] = useState(false);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState("");
-  useEffect(() => {
-    async function carregarTarefas() {
-      try {
-        setCarregando(true);
-        setErro("");
-        const dados = await listarTarefas();
-        setTarefas(dados);
-      } catch {
-        setErro("Não foi possível carregar as tarefas.");
-      } finally {
-        setCarregando(false);
-      }
-    }
-    carregarTarefas();
-  }, []);
-  if (carregando) {
-    return <p>Carregando tarefas...</p>;
-  }
-  if (erro) {
-    return <p>{erro}</p>;
-  }
 
-  async function adicionarTarefa(novaTarefa: Omit<Tarefa, "_id">) {
-    try {
-      setErro("");
-      const tarefaCriada = await criarTarefa(novaTarefa);
-      setTarefas((tarefasAtuais) => [tarefaCriada, ...tarefasAtuais]);
-      setFormularioAberto(false);
-    } catch {
-      setErro("Não foi possível criar a tarefa.");
-    }
-  }
+type VisaoTarefas = "tarefas" | "hoje" | "proximas" | "concluidas";
 
-  async function removerTarefa(id: string) {
-    try {
-      setErro("");
-      await excluirTarefa(id);
-      setTarefas((tarefasAtuais) => tarefasAtuais.filter((tarefa) => tarefa._id !== id));
-    } catch {
-      setErro("Não foi possível excluir a tarefa.");
-    }
+type TasksProps = {
+  visao: VisaoTarefas;
+};
+
+const informacoesVisao: Record<VisaoTarefas, { titulo: string; descricao: string; eyebrow: string }> = {
+  tarefas: {
+    titulo: "Todas as tarefas",
+    descricao: "Visualização completa das tarefas cadastradas.",
+    eyebrow: "VISÃO GERAL",
+  },
+  hoje: {
+    titulo: "Hoje",
+    descricao: "Concentre-se no que precisa avançar agora.",
+    eyebrow: "FOCO DO DIA",
+  },
+  proximas: {
+    titulo: "Próximas",
+    descricao: "Tarefas previstas para os próximos dias.",
+    eyebrow: "PLANEJAMENTO",
+  },
+  concluidas: {
+    titulo: "Concluídas",
+    descricao: "Tarefas que já foram finalizadas.",
+    eyebrow: "HISTÓRICO",
+  },
+};
+
+function obterDataAtual() {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+  const dia = String(hoje.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+function filtrarTarefas(tarefas: Tarefa[], visao: VisaoTarefas) {
+  const hoje = obterDataAtual();
+
+  switch (visao) {
+    case "tarefas":
+      return tarefas.filter((tarefa) => !tarefa.concluida);
+    case "hoje":
+      return tarefas.filter((tarefa) => !tarefa.concluida && tarefa.data === hoje);
+    case "proximas":
+      return tarefas.filter((tarefa) => !tarefa.concluida && tarefa.data > hoje);
+    case "concluidas":
+      return tarefas.filter((tarefa) => tarefa.concluida);
   }
+}
+
+export function Tasks({ visao }: Readonly<TasksProps>) {
+  const { abrirTaskModal, editarTarefa } = useOutletContext<LayoutContext>();
+  const { tarefas, carregando, erro, removerTarefa, alternarConclusao } = useTarefas();
+  const informacao = informacoesVisao[visao];
+  const tarefasVisiveis = filtrarTarefas(tarefas, visao);
 
   return (
     <section className="tasks-page">
       <div className="tasks-page__heading">
         <div>
-          <p className="page-eyebrow">VISÃO GERAL</p>
-          <h1>Todas as tarefas</h1>
-          <p>Visualização completa das tarefas cadastradas.</p>
+          <p className="page-eyebrow">{informacao.eyebrow}</p>
+          <h1>{informacao.titulo}</h1>
+          <p>{informacao.descricao}</p>
         </div>
-        <button type="button" onClick={() => setFormularioAberto(true)}>
+        <button type="button" onClick={abrirTaskModal}>
           Nova tarefa
         </button>
       </div>
       {erro && <p className="tasks-page__error">{erro}</p>}
-      {formularioAberto && <TaskForm aoSalvar={adicionarTarefa} aoCancelar={() => setFormularioAberto(false)} />}
-      {carregando ? <p>Carregando tarefas...</p> : <TaskList tarefas={tarefas} aoExcluir={removerTarefa} />}
+      {carregando ? (
+        <p>Carregando tarefas...</p>
+      ) : (
+        <TaskList
+          tarefas={tarefasVisiveis}
+          aoExcluir={(id) => void removerTarefa(id)}
+          aoEditar={editarTarefa}
+          aoAlternarConclusao={(tarefa) => void alternarConclusao(tarefa)}
+        />
+      )}
     </section>
   );
 }

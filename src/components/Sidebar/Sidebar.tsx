@@ -7,7 +7,12 @@ const itensMenu = [
   { titulo: "Todas as tarefas", caminho: "/tarefas", icone: Inbox },
   { titulo: "Concluídas", caminho: "/concluidas", icone: CircleCheckBig },
 ];
-export function Sidebar() {
+
+type SidebarProps = {
+  aoNovaTarefa: () => void;
+};
+
+export function Sidebar({ aoNovaTarefa }: Readonly<SidebarProps>) {
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
@@ -21,7 +26,7 @@ export function Sidebar() {
           <span>Gerenciador de tarefas</span>
         </div>
       </div>
-      <button className="sidebar__new-task" type="button">
+      <button className="sidebar__new-task" type="button" onClick={aoNovaTarefa}>
         <Plus size={18} />
         Nova tarefa
       </button>

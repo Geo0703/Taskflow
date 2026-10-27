@@ -1,9 +1,16 @@
+import axios from "axios";
 import { useState } from "react";
 import type { Prioridade, Tarefa } from "../../types/Tarefa";
 import "./TaskForm.css";
 type NovaTarefa = Omit<Tarefa, "_id">;
-type TaskFormProps = { aoSalvar: (tarefa: NovaTarefa) => Promise<void>; aoCancelar: () => void };
-const estadoInicial: NovaTarefa = {
+type TaskFormProps = {
+  tarefaInicial?: NovaTarefa;
+  modoEdicao: boolean;
+  salvando: boolean;
+  aoSalvar: (tarefa: NovaTarefa) => Promise<void>;
+  aoCancelar: () => void;
+};
+const estadoVazio: NovaTarefa = {
   titulo: "",
   descricao: "",
   data: "",
@@ -11,9 +18,16 @@ const estadoInicial: NovaTarefa = {
   projeto: "",
   concluida: false,
 };
-export function TaskForm({ aoSalvar, aoCancelar }: Readonly<TaskFormProps>) {
-  const [formulario, setFormulario] = useState<NovaTarefa>(estadoInicial);
-  const [salvando, setSalvando] = useState(false);
+export function TaskForm({
+  tarefaInicial,
+  modoEdicao,
+  salvando,
+  aoSalvar,
+  aoCancelar,
+}: Readonly<TaskFormProps>) {
+  const [formulario, setFormulario] = useState<NovaTarefa>(tarefaInicial ?? estadoVazio);
+  const [erroSalvamento, setErroSalvamento] = useState("");
+
   function alterarCampo(campo: keyof NovaTarefa, valor: string | boolean) {
     setFormulario((estadoAtual) => ({
       ...estadoAtual,
@@ -22,17 +36,36 @@ export function TaskForm({ aoSalvar, aoCancelar }: Readonly<TaskFormProps>) {
   }
   async function enviarFormulario(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
+    setErroSalvamento("");
     try {
-      setSalvando(true);
       await aoSalvar(formulario);
-      setFormulario(estadoInicial);
-    } finally {
-      setSalvando(false);
+    } catch (erro) {
+      if (axios.isAxiosError(erro)) {
+        if (!erro.response) {
+          setErroSalvamento(
+            "A API não respondeu. Verifique sua conexão, a URL configurada e se o serviço permite requisições do navegador (CORS).",
+          );
+        } else if (erro.response.status === 404) {
+          setErroSalvamento(
+            "A API retornou 404. Confira se o endereço configurado ainda está ativo e se o recurso /tarefas existe.",
+          );
+        } else {
+          setErroSalvamento(`A API recusou o salvamento (HTTP ${erro.response.status}). Tente novamente.`);
+        }
+      } else {
+        setErroSalvamento("Ocorreu um erro inesperado ao salvar a tarefa. Tente novamente.");
+      }
     }
   }
+
   return (
     <form className="task-form" onSubmit={enviarFormulario}>
-      <h2>Nova tarefa</h2>
+      <h2>{modoEdicao ? "Editar tarefa" : "Nova tarefa"}</h2>
+      {erroSalvamento && (
+        <p className="task-form__error" role="alert">
+          {erroSalvamento}
+        </p>
+      )}
       <label>
         <span>Título</span>
         <input
@@ -77,11 +110,11 @@ export function TaskForm({ aoSalvar, aoCancelar }: Readonly<TaskFormProps>) {
         />
       </label>
       <div className="task-form__actions">
-        <button type="button" onClick={aoCancelar}>
+        <button type="button" onClick={aoCancelar} disabled={salvando}>
           Cancelar
         </button>
         <button type="submit" disabled={salvando}>
-          {salvando ? "Salvando..." : "Criar tarefa"}
+          {salvando ? "Salvando..." : modoEdicao ? "Salvar alterações" : "Criar tarefa"}
         </button>
       </div>
     </form>
